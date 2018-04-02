@@ -39,7 +39,8 @@ public class DynamicalSystems : ModuleRules
 				"AnimationCore",
                 "GameplayAbilities",
                 "GameplayTags",
-                "Sockets"
+                "Sockets",
+                "HeadMountedDisplay" , "SteamVR" 
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
