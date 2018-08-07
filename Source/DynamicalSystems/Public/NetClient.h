@@ -131,4 +131,75 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NetClient|Debug")
 	float PingTimeout = 1.0f;
+
+	UFUNCTION(BlueprintCallable, Category = "NetClient|Experimental")
+	void Subscribe(UObject* object) {
+			Subscribers.Add(object->GetUniqueID(), object);
+	}
+	protected:
+		TMap<uint32, UObject*> Subscribers;
 };
+///*
+USTRUCT(BlueprintType)
+struct FNetGuid {
+	GENERATED_USTRUCT_BODY()
+	/** Default constructor. */
+	FNetGuid()
+		: A(0)
+		, B(0)
+		, C(0)
+		, D(0)
+	{ }
+
+	/**
+	* Creates and initializes a new GUID from the specified components.
+	*
+	* @param InA The first component.
+	* @param InB The second component.
+	* @param InC The third component.
+	* @param InD The fourth component.
+	*/
+	FNetGuid(uint8 InA, uint8 InB, uint8 InC, uint8 InD)
+		: A(InA), B(InB), C(InC), D(InD)
+	{ }
+
+public:
+
+	/** Holds the first component. */
+	uint8 A; //object
+
+	/** Holds the second component. */
+	uint8 B; //level
+
+	/** Holds the third component. */
+	uint8 C; //instance
+
+	/** Holds the fourth component. */
+	uint8 D; //system
+
+
+			 /**
+			 * Invalidates the GUID.
+			 *
+			 * @see IsValid
+			 */
+	void Invalidate()
+	{
+		A = B = C = D = 0;
+	}
+
+	/**
+	* Checks whether this GUID is valid or not.
+	*
+	* A GUID that has all its components set to zero is considered invalid.
+	*
+	* @return true if valid, false otherwise.
+	* @see Invalidate
+	*/
+	bool IsValid() const
+	{
+		return ((A | B | C | D) != 0);
+	}
+
+};
+//*/

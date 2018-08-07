@@ -8,6 +8,7 @@ extern "C" {
         size_t vec_len;
     } RustVec;
 
+
     typedef struct AvatarPack {
         uint32_t id;
         float root_px, root_py, root_pz, root_pw;

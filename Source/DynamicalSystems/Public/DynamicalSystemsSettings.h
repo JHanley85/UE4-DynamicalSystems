@@ -103,5 +103,9 @@ public:
 
 		return Cast<ObjClass>(StaticLoadObject(ObjClass::StaticClass(), NULL, *Path.ToString()));
 	}
+	UFUNCTION(BlueprintCallable)
+	static USkeletalMesh* LoadMesh(FSoftObjectPath path) {
+		return LoadObjFromPath<USkeletalMesh>(*path.ToString());
+	}
 };
 	
