@@ -28,6 +28,9 @@
 #define PORT_COUNT 3
 
 DECLARE_DYNAMIC_DELEGATE_OneParam(FSnapshotDelegate, FPoseSnapshot, snapshot);
+
+typedef TArray<uint8> ByteBuffer;
+
 /**
  * 
  */
@@ -329,6 +332,24 @@ public:
 		}
 	}
 #pragma endregion Server
+
+
+#pragma region Templates
+	template< class T >
+	static FORCEINLINE T ToArchive(T Thing,TArray<uint8> Out) {
+		FBufferArchive Ar = FBufferArchive();
+		Ar << Thing;
+		FArchiveSaveCompressedProxy Compressor =
+			FArchiveSaveCompressedProxy(Compressed, ECompressionFlags::COMPRESS_ZLIB);
+		//Send entire binary array/archive to compressor
+		Compressor << Ar;
+		//send archive serialized data to binary array
+		Compressor.Flush();
+		UE_LOG(LogTemp, VeryVerbose, TEXT(" Compressed Size ~ %i"), Compressed.Num());
+		UE_LOG(LogTemp, VeryVerbose, TEXT(" Uncompressed Size ~ %i"), Ar.Num());
+		Out = Ar;
+	}
+#pragma endregion Templates
 };
 
 

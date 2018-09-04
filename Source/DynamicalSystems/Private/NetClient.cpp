@@ -11,7 +11,7 @@
 
 DEFINE_LOG_CATEGORY(RustyNet);
 #define APIVersion 1
-
+ANetClient* ANetClient::Instance = nullptr;
 ANetClient::ANetClient()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -223,7 +223,11 @@ void ANetClient::Tick(float DeltaTime)
 		}
 		LastRigidbodyTime = CurrentRigidbodyTime;
 	}
-    
+	if (!ServerTimeActive) {
+		ServerTimeActive = true;
+		UE_LOG(UE_LOG,LogTemp,TEXT("Current System Time: %i"), rd_system_time);
+		GetWorld()->GetTimerManager().SetTimer(ServerTimeHandle, this, &ANetClient::RequestServerTime, ServerTimeFrequency,false); 
+	}
 	int Loop = 0;
 	for (; Loop < 1000; Loop += 1) {
 		RustVec* RustMsg = rd_netclient_msg_pop(Client);
@@ -242,8 +246,8 @@ void ANetClient::Tick(float DeltaTime)
 				RebuildConsensus();
 			}
 			else if (Msg[0] == ENetAddress::World) { // World
-				int32* MsgValue = (int64*)(Msg + 1);
-				UE_LOG(RustyNet, VeryVerbose, TEXT("Msg IN ServerTime MsgValue: %f"), Msg[1], Msg[2], *MsgValue);
+				int64* MsgValue = (int64*)(Msg + 1);
+				UE_LOG(RustyNet, VeryVerbose, TEXT("Msg IN ServerTime MsgValue: %i"),MsgValue);
 
 			}
 			else if (Msg[0] == ENetAddress::Avatar ) { // Avatar
@@ -352,6 +356,10 @@ void ANetClient::Tick(float DeltaTime)
 			break;
 		}
 	}
+}
+void ANetClient::RequestServerTime() {
+	UE_LOG( LogTemp,Log TEXT("Current System Time: %i"), rd_system_time);
+	//	rd_request_server_time(Client);
 }
 int32 ANetClient::bitsToInt( const uint8* bits, bool little_endian)
 {
@@ -515,6 +523,7 @@ bool  ANetClient::AppendSingleFloat(float Value,TArray<uint8>& AppendTo) {
 	bytes[2] = fbytes[2];
 	bytes[3] = fbytes[3];
 	AppendTo.Append(bytes);
+	return true;
 }
 bool  ANetClient::AR_SendSystemIntGlobal(int32 System, int32 Id, int32 Value){
 	TArray<uint8> Msg = TArray<uint8>();
@@ -526,7 +535,8 @@ bool  ANetClient::AR_SendSystemIntGlobal(int32 System, int32 Id, int32 Value){
 	return false;
 }
 
-bool ANetClient::AppendSingleInt(int8 Value, TArray<uint8>& AppendTo) {
+bool ANetClient::AppendSingleInt(uint8 Value, TArray<uint8>& AppendTo)
+{
 	uint8* ibytes = (uint8*)(&Value);
 	TArray<uint8> bytes;
 	bytes[0] = ibytes[0];
@@ -534,6 +544,7 @@ bool ANetClient::AppendSingleInt(int8 Value, TArray<uint8>& AppendTo) {
 	bytes[2] = ibytes[2];
 	bytes[3] = ibytes[3];
 	AppendTo.Append(bytes);
+	return true;
 }
 bool  ANetClient::AR_SendSystemStringGlobal(int32 System, int32 Id, FString Value) {
 	uint8 Msg[2000];
@@ -547,8 +558,8 @@ bool  ANetClient::AR_SendSystemStringGlobal(int32 System, int32 Id, FString Valu
 }
 
 bool  ANetClient::AppendSingleString(FString Value, TArray<uint8>& AppendTo) {
-	return TArray<uint8>();
+	return false;
 }
 #pragma endregion SendRec
 
-RouteMap  ANetClient::delegateMap = Routemap();
+RouteMap  ANetClient::delegateMap = RouteMap();

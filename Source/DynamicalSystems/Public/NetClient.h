@@ -77,6 +77,10 @@ public:
 	int64 RequestTime;
 	int64 ServerTime;
 	int64 PingTime;
+	float ServerTimeFrequency = 5.0f;
+	void RequestServerTime();
+	FTimerHandle ServerTimeHandle;
+	bool ServerTimeActive;
 	UFUNCTION(BlueprintCallable, Category="NetClient")
 	void SendSystemFloat(int32 System, int32 Id, float Value);
 
@@ -91,13 +95,13 @@ public:
 	static FOnArchive OnByteArray;
 	UFUNCTION(BlueprintCallable, Category = "OSS|Send")
 		bool AR_SendSystemFloatGlobal(int32 System, int32 Id, float Value);
-	static TArray<uint8> AppendSingleFloat(float Value, TArray<uint8>& AppendTo);
+	static bool AppendSingleFloat(float Value, TArray<uint8>& AppendTo);
 	UFUNCTION(BlueprintCallable, Category = "OSS|Send")
 		bool AR_SendSystemIntGlobal(int32 System, int32 Id, int32 Value);
-	static TArray<uint8> AppendSingleInt(uint8 Value, TArray<uint8>& AppendTo);
+	static bool AppendSingleInt(uint8 Value, TArray<uint8>& AppendTo);
 	UFUNCTION(BlueprintCallable, Category = "OSS|Send")
 		bool AR_SendSystemStringGlobal(int32 System, int32 Id, FString Value);
-	static TArray<uint8> AppendSingleString(FString Value, TArray<uint8>& AppendTo);
+	static bool AppendSingleString(FString Value, TArray<uint8>& AppendTo);
 		
 	static RouteMap delegateMap;
 	static bool SendCurrentRouteMap() {

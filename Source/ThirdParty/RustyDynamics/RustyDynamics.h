@@ -41,7 +41,7 @@ extern "C" {
     void* rd_netclient_open(const char* local_addr, const char* server_addr, const char* mumble_addr, const char* audio_src);
     void rd_netclient_drop(void* client);
 
-
+	
     bool rd_netclient_msg_push(void* client, const uint8* bytes, uint32_t count);
     RustVec* rd_netclient_msg_pop(void* client);
     void rd_netclient_msg_drop(RustVec* msg);
@@ -58,5 +58,7 @@ extern "C" {
     void rd_netclient_push_rigidbody(void* client, const RigidbodyPack* rigidbody);
     RigidbodyPack* rd_netclient_dec_rigidbody(const uint8* bytes, uint32_t count);
     void rd_netclient_drop_rigidbody(RigidbodyPack* rigidbody);
-
+	
+	
+	uint64 rd_request_server_time(void* client);
 }
