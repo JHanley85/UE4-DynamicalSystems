@@ -4,6 +4,8 @@
 #include "GameFramework/Actor.h"
 #include "NetClient.generated.h"
 
+
+
 class UNetRigidBody;
 class UNetAvatar;
 class UNetVoice;
@@ -14,7 +16,22 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FSystemStringMsgDecl, int32, Syst
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FVoiceActivityMsgDecl, int32, NetId, float, Value);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FUint8MsgDecl, uint8, System, uint8, Id);
 
+DECLARE_DELEGATE_TwoParams(FOnArchive, TArray<uint8>, int32 );
 DECLARE_LOG_CATEGORY_EXTERN(RustyNet, Log, All);
+
+typedef TMap<int32, FDelegateBase> RouteMap;
+
+enum ENetAddress : uint8 {
+	Ping = 0,
+	World = 1,
+	Avatar = 2,  //Hardcoded
+	RigidBody = 3, //Hardcoded
+	ByteArray = 4, //Hardcoded
+	NetGuid = 5, //Hardcoded
+	Float = 10,
+	Int = 11,
+	String = 12,
+};
 
 UCLASS( ClassGroup=(DynamicalSystems), meta=(BlueprintSpawnableComponent) )
 class DYNAMICALSYSTEMS_API ANetClient : public AActor
@@ -48,6 +65,18 @@ public:
     void RegisterVoice(UNetVoice* Voice);
     void Say(uint8* Bytes, uint32 Count);
 
+#pragma region Singleton
+	static ANetClient* Instance;
+	UFUNCTION(BlueprintCallable,Category = "OSS|Network")
+	static bool GetNetClient(ANetClient*& Client) {
+		Client = Instance;
+		return Instance != nullptr;
+	}
+#pragma endregion Singleton
+#pragma region Send_Rec
+	int64 RequestTime;
+	int64 ServerTime;
+	int64 PingTime;
 	UFUNCTION(BlueprintCallable, Category="NetClient")
 	void SendSystemFloat(int32 System, int32 Id, float Value);
 
@@ -57,14 +86,36 @@ public:
 	UFUNCTION(BlueprintCallable, Category="NetClient")
 	void SendSystemString(int32 System, int32 Id, FString Value);
 
-	UPROPERTY(BlueprintAssignable)
-	FSystemFloatMsgDecl OnSystemFloatMsg;
+	UFUNCTION(BlueprintCallable, Category = "NetClient")
+		bool SendByteArray(TArray<uint8> In,int32 guid);
+	static FOnArchive OnByteArray;
+	UFUNCTION(BlueprintCallable, Category = "OSS|Send")
+		bool AR_SendSystemFloatGlobal(int32 System, int32 Id, float Value);
+	static TArray<uint8> AppendSingleFloat(float Value, TArray<uint8>& AppendTo);
+	UFUNCTION(BlueprintCallable, Category = "OSS|Send")
+		bool AR_SendSystemIntGlobal(int32 System, int32 Id, int32 Value);
+	static TArray<uint8> AppendSingleInt(uint8 Value, TArray<uint8>& AppendTo);
+	UFUNCTION(BlueprintCallable, Category = "OSS|Send")
+		bool AR_SendSystemStringGlobal(int32 System, int32 Id, FString Value);
+	static TArray<uint8> AppendSingleString(FString Value, TArray<uint8>& AppendTo);
+		
+	static RouteMap delegateMap;
+	static bool SendCurrentRouteMap() {
+		return false;
+	};
+
 
 	UPROPERTY(BlueprintAssignable)
-	FSystemIntMsgDecl OnSystemIntMsg;
+		FSystemFloatMsgDecl OnSystemFloatMsg;
 
 	UPROPERTY(BlueprintAssignable)
-	FSystemStringMsgDecl OnSystemStringMsg;
+		FSystemIntMsgDecl OnSystemIntMsg;
+
+	UPROPERTY(BlueprintAssignable)
+		FSystemStringMsgDecl OnSystemStringMsg;
+
+#pragma endregion Send_Rec
+
 
 	UPROPERTY(BlueprintAssignable)
 	FVoiceActivityMsgDecl OnVoiceActivityMsg;
@@ -81,8 +132,12 @@ public:
 	UFUNCTION(BlueprintGetter)
 	FString GetAudioDevice();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NetClient")
-    FString Local;
+		FURL LocalUrl;
+		FURL ServerUrl;
+		FURL MumbleUrl;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NetClient")
+    FString Local="0.0.0.0";
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "NetClient", BlueprintGetter = GetServer)
 	FString Server = "127.0.0.1:8080";
@@ -136,70 +191,7 @@ public:
 	void Subscribe(UObject* object) {
 			Subscribers.Add(object->GetUniqueID(), object);
 	}
+	int32 bitsToInt(const uint8* bits, bool little_endian=true);
 	protected:
 		TMap<uint32, UObject*> Subscribers;
 };
-///*
-USTRUCT(BlueprintType)
-struct FNetGuid {
-	GENERATED_USTRUCT_BODY()
-	/** Default constructor. */
-	FNetGuid()
-		: A(0)
-		, B(0)
-		, C(0)
-		, D(0)
-	{ }
-
-	/**
-	* Creates and initializes a new GUID from the specified components.
-	*
-	* @param InA The first component.
-	* @param InB The second component.
-	* @param InC The third component.
-	* @param InD The fourth component.
-	*/
-	FNetGuid(uint8 InA, uint8 InB, uint8 InC, uint8 InD)
-		: A(InA), B(InB), C(InC), D(InD)
-	{ }
-
-public:
-
-	/** Holds the first component. */
-	uint8 A; //object
-
-	/** Holds the second component. */
-	uint8 B; //level
-
-	/** Holds the third component. */
-	uint8 C; //instance
-
-	/** Holds the fourth component. */
-	uint8 D; //system
-
-
-			 /**
-			 * Invalidates the GUID.
-			 *
-			 * @see IsValid
-			 */
-	void Invalidate()
-	{
-		A = B = C = D = 0;
-	}
-
-	/**
-	* Checks whether this GUID is valid or not.
-	*
-	* A GUID that has all its components set to zero is considered invalid.
-	*
-	* @return true if valid, false otherwise.
-	* @see Invalidate
-	*/
-	bool IsValid() const
-	{
-		return ((A | B | C | D) != 0);
-	}
-
-};
-//*/

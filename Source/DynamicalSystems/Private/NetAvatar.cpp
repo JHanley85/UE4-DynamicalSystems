@@ -54,3 +54,7 @@ void UNetAvatar::TickComponent( float DeltaTime, ELevelTick TickType, FActorComp
 	}
 }
 
+void UNetAvatar::RPC_Client_SendFullpose_Implementation()
+{
+	Pose_WriteNetwork(Fullpose);
+}

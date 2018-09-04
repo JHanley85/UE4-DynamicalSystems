@@ -56,7 +56,9 @@ void URigidBodyController::TickComponent( float DeltaTime, ELevelTick TickType, 
 			FVector RotatorAxis;
 			float RotatorAngle;
 			Rotator.ToAxisAndAngle(RotatorAxis, RotatorAngle);
-			StaticMesh->AddTorque(RotatorAxis * RotationControl * 10000.f);
+			StaticMesh->AddTorqueInRadians(FMath::DegreesToRadians(RotatorAxis * RotationControl * 10000.f));
+			//StaticMesh->AddTorque(RotatorAxis * RotationControl * 10000.f);
+
         }
     }
 }

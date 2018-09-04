@@ -44,7 +44,8 @@ public class DynamicalSystems : ModuleRules
                 "AnimationCore",
                 "GameplayAbilities",
                 "GameplayTags",
-                "Sockets"
+                "Sockets",
+                "OnlineSubsystem"
 				// ... add other public dependencies that you statically link with here ...
 			}
             );

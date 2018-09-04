@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "Engine/DataTable.h"
+#include "Runtime/Engine/Classes/Engine/SkeletalMesh.h"
 #include "DynamicalSystemsSettings.generated.h"
 
 USTRUCT(BlueprintType)
@@ -107,5 +108,18 @@ public:
 	static USkeletalMesh* LoadMesh(FSoftObjectPath path) {
 		return LoadObjFromPath<USkeletalMesh>(*path.ToString());
 	}
+
+
+	UPROPERTY(config, EditAnywhere, Category = "Dynamical|Channel", BlueprintReadWrite)
+		TMap<FSoftObjectPath, uint8> MapIds;
+	UFUNCTION(BlueprintCallable)
+		static uint8 GetMapId(const UObject* level) {
+		const FSoftObjectPath& AssetRef = FSoftObjectPath(level->GetPathName());
+		if (Get()->MapIds.Contains(AssetRef)) {
+			return *Get()->MapIds.Find(AssetRef);
+		}
+		return 0;
+	}
+
 };
 	

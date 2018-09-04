@@ -1,7 +1,9 @@
 #pragma once
 
 #include "Engine.h"
+#include "Modules/ModuleManager.h"
 #include "DynamicalUtil.generated.h"
+
 
 UCLASS( ClassGroup=(DynamicalSystems), meta=(BlueprintSpawnableComponent) )
 class DYNAMICALSYSTEMS_API UDynamicalUtil : public UObject

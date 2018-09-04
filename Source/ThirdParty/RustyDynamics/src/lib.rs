@@ -4,6 +4,7 @@ extern crate bincode;
 extern crate cgmath;
 extern crate futures;
 pub extern crate mumblebot;
+extern crate time;
 #[macro_use]
 extern crate serde_derive;
 extern crate tokio_core;
@@ -82,13 +83,35 @@ pub struct Client {
 }
 
 #[no_mangle]
-pub fn rd_netclient_msg_push(client: *mut Client, bytes: *const u8, count: u32) {
+pub fn rd_request_server_time(client: *mut Client)->u64{
+	unsafe{
+		  let mut data: Vec<u8> = Vec::new();
+		  data[0] = 1u8;
+		  let requestedTime = time::precise_time_ns();
+		  if let Err(err) = (*client).sender_pubsub.send(data) {
+		  	  return 0;
+			  log(format!("rd_request_server_time: {} ",err));
+		  }else{
+		  	  return requestedTime;
+		  }
+	}
+}
+
+#[no_mangle]
+pub fn rd_system_time()->u64{
+	return time::precise_time_ns();
+}
+#[no_mangle]
+pub fn rd_netclient_msg_push(client: *mut Client, bytes: *const u8, count: u32) -> bool {
     unsafe {
         let msg = std::slice::from_raw_parts(bytes, count as usize);
         let msg = Vec::from(msg);
         if let Err(err) = (*client).sender_pubsub.send(msg) {
+			return false;
             log(format!("rd_netclient_msg_push: {}", err));
-        }
+        }else{
+			return true;
+		}
     }
 }
 
@@ -289,6 +312,14 @@ pub struct Rigidbody {
 
 #[repr(C)]
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct NetGuid{
+	_session: u8,
+	_class: u8,
+	_object:u8,
+	_property:u8
+}
+#[repr(C)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct Avatar {
     id: u32,
     root_px: f32,
@@ -325,6 +356,40 @@ pub struct Avatar {
     handR_rw: f32,
     height: f32,
     floor: f32,
+}
+
+#[repr(C)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct Archive {
+	guid: u32,		
+	data: Vec<u8>,
+}
+
+#[no_mangle]
+pub fn rd_netclient_push_archive(client: *mut Client,farchive: *const Archive){
+	unsafe {	
+		let mut msg = vec![4u8];
+		let mut encoded: Vec<u8> = serialize(&(*farchive), Infinite).unwrap();
+		msg.append(&mut encoded);
+
+		if let Err(err) = (*client).sender_pubsub.send(msg) {
+            log(format!("rd_netclient_push_avatar: {}", err));
+		}
+	}
+}
+
+#[no_mangle]
+pub fn rd_netclient_dec_archive(bytes: *const u8, count: u32) -> *const Archive{
+	unsafe {
+        let msg = std::slice::from_raw_parts(bytes, count as usize);
+		  let archive: Archive = deserialize(msg).unwrap();
+        let archive = Box::new(archive);
+        Box::into_raw(archive)
+    }
+}
+#[no_mangle]
+pub fn rd_netclient_drop_archive(archive: *mut Archive){
+	 unsafe { Box::from_raw(archive) };
 }
 
 #[no_mangle]

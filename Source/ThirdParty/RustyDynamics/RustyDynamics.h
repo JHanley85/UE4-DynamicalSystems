@@ -1,5 +1,5 @@
 #pragma once
-
+#include <vector>
 extern "C" {
 
     typedef struct RustVec {
@@ -8,6 +8,10 @@ extern "C" {
         size_t vec_len;
     } RustVec;
 
+	typedef struct ArchivePack {
+		uint32_t guid;
+		std::vector<uint8_t> data;
+	} ArchivePack;
 
     typedef struct AvatarPack {
         uint32_t id;
@@ -37,9 +41,15 @@ extern "C" {
     void* rd_netclient_open(const char* local_addr, const char* server_addr, const char* mumble_addr, const char* audio_src);
     void rd_netclient_drop(void* client);
 
-    void rd_netclient_msg_push(void* client, const uint8* bytes, uint32_t count);
+
+    bool rd_netclient_msg_push(void* client, const uint8* bytes, uint32_t count);
     RustVec* rd_netclient_msg_pop(void* client);
     void rd_netclient_msg_drop(RustVec* msg);
+
+
+	void rd_netclient_push_archive(void* client, const ArchivePack* archive);
+	ArchivePack* rd_netclient_dec_archive(const uint8* bytes, uint32_t count);
+	void rd_netclient_drop_archive(ArchivePack* archive);
 
     void rd_netclient_push_avatar(void* client, const AvatarPack* avatar);
     AvatarPack* rd_netclient_dec_avatar(const uint8* bytes, uint32_t count);

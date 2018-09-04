@@ -23,6 +23,11 @@
       "Name": "DynamicalSystemsEditor",
       "Type": "Editor",
       "LoadingPhase": "Default"
+    },
+    {
+      "Name": "OnlineSubsystemDynSys",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
     }
   ],
   "Plugins": [
@@ -30,9 +35,13 @@
       "Name": "GameplayAbilities",
       "Enabled": true
     },
-    {
-      "Name": "OnlineSubsystemSteam",
-      "Enabled": true
-    }
+	{
+		"Name": "OnlineSubsystem",
+		"Enabled": true
+	},
+	{
+		"Name": "OnlineSubsystemUtils",
+		"Enabled": true
+	}
   ]
 }

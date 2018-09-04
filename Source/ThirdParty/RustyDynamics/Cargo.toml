@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Alex Rozgo <alex.rozgo@gmail.com>"]
 
 [dependencies]
+num-complex = "0.2"
 cgmath = "0.16"
 byteorder = "1.0.0"
 tokio-core = "0.1"
@@ -20,7 +21,7 @@ byte-slice-cast = "0.1"
 ocbaes128 = { path = "../../../../../../OCB-AES128" }
 mumblebot = { path = "../../../../../../mumble-bot" }
 # mumblebot = { git = "https://github.com/rozgo/mumble-bot", branch = "master" }
-
+time = "0.1"
 
 [lib]
 name = "RustyDynamics"
