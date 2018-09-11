@@ -60,5 +60,8 @@ extern "C" {
     void rd_netclient_drop_rigidbody(RigidbodyPack* rigidbody);
 	
 	
-	uint64 rd_request_server_time(void* client);
+	uint64 rd_request_server_time(void* client,uint8 request);
+	uint64 rd_system_time();
+	uint64 rd_time_delta_ns(uint64 time1, uint64 time2);
+	bool rd_register(void* client, uint32 uuid);
 }

@@ -10,6 +10,7 @@
 #include "OnlineSubsystemDynSysPackage.h"
 #include "LANBeacon.h"
 
+
 class FOnlineSubsystemDynSys;
 
 class FOSSGuID : public FNetworkGUID {

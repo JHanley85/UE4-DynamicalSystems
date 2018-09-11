@@ -31,6 +31,15 @@ DECLARE_DYNAMIC_DELEGATE_OneParam(FSnapshotDelegate, FPoseSnapshot, snapshot);
 
 typedef TArray<uint8> ByteBuffer;
 
+USTRUCT(BlueprintType)
+struct FNetSnapshotPose {
+	GENERATED_USTRUCT_BODY()
+public:
+	UPROPERTY(BlueprintReadWrite)
+		TArray<FTransform> LocalTransforms;
+	UPROPERTY(BlueprintReadWrite)
+		uint8 MeshId;
+};
 /**
  * 
  */
@@ -43,6 +52,18 @@ public:
 	UOSSFunctionLibrary() {
 		ANetClient::OnByteArray.BindStatic(UOSSFunctionLibrary::RouteArchive);
 	}
+	UFUNCTION(BlueprintCallable)
+		static void PrintRPCID(const FSnapshotDelegate& del) {
+		FDeserializeArchiveDelegate cb = FDeserializeArchiveDelegate(del);
+		FName func = cb.GetFunctionName();
+		UObject* obj = cb.GetUObject();
+		UFunction* f = obj->FindFunctionChecked(func);
+		int32 funcId =(int32) f->RPCResponseId;
+		UE_LOG(LogTemp, Log, TEXT("%s"), *FString::FromInt(funcId));
+	}
+
+
+
 	static void RouteArchive(TArray<uint8> Data, int32 Guid) {
 		UE_LOG(LogTemp, VeryVerbose, TEXT("Recd: data %i for %i"), Data.Num(), Guid);
 		FPoseSnapshot Pose;
@@ -335,19 +356,20 @@ public:
 
 
 #pragma region Templates
-	template< class T >
-	static FORCEINLINE T ToArchive(T Thing,TArray<uint8> Out) {
-		FBufferArchive Ar = FBufferArchive();
-		Ar << Thing;
-		FArchiveSaveCompressedProxy Compressor =
-			FArchiveSaveCompressedProxy(Compressed, ECompressionFlags::COMPRESS_ZLIB);
-		//Send entire binary array/archive to compressor
-		Compressor << Ar;
-		//send archive serialized data to binary array
-		Compressor.Flush();
-		UE_LOG(LogTemp, VeryVerbose, TEXT(" Compressed Size ~ %i"), Compressed.Num());
-		UE_LOG(LogTemp, VeryVerbose, TEXT(" Uncompressed Size ~ %i"), Ar.Num());
-		Out = Ar;
+	UFUNCTION(BlueprintCallable)
+		static void SnapshotPoseFromBytes(FNetSnapshotPose& Pose,const TArray<uint8> In) {
+		FMemoryReader ARWriter = FMemoryReader(In);
+		FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Pose);
+	}
+	UFUNCTION(BlueprintCallable)
+		static void SnapshotPoseToBytes(FNetSnapshotPose Pose, TArray<uint8>& Out) {
+		FMemoryWriter ARWriter = FMemoryWriter(Out);
+		FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Pose);
+	}
+	UFUNCTION(BlueprintCallable)
+	static void StructToBytes(TSubclassOf<UStruct> Data,UStruct* Data_obj, TArray<uint8>& Out) {
+		FMemoryWriter ARWriter = FMemoryWriter(Out);
+		FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Data);
 	}
 #pragma endregion Templates
 };

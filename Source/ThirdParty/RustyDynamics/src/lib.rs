@@ -9,6 +9,7 @@ extern crate time;
 extern crate serde_derive;
 extern crate tokio_core;
 extern crate uuid;
+extern crate byteorder;
 
 use mumblebot::positional;
 use cgmath::*;
@@ -28,9 +29,10 @@ use tokio_core::net::{UdpCodec, UdpSocket};
 use tokio_core::reactor::Core;
 
 use std::os::raw::c_char;
-
+use time::{Duration, PreciseTime};
 mod rnd;
 
+use byteorder::{LittleEndian, ReadBytesExt,WriteBytesExt};
 pub struct LineCodec;
 
 extern "C" fn null_log(_log: *const std::os::raw::c_char) {
@@ -82,13 +84,32 @@ pub struct Client {
     kill: futures::sink::Wait<futures::sync::mpsc::Sender<()>>,
 }
 
+
 #[no_mangle]
-pub fn rd_request_server_time(client: *mut Client)->u64{
+pub fn rd_register(client: *mut Client,  id:u32) -> bool{
 	unsafe{
-		  let mut data: Vec<u8> = Vec::new();
-		  data[0] = 1u8;
-		  let requestedTime = time::precise_time_ns();
-		  if let Err(err) = (*client).sender_pubsub.send(data) {
+		let mut msg = vec![1u8,1u8];
+		let mut wtr = vec![];
+		wtr.write_u32::<LittleEndian>(id).unwrap();
+		msg.append(&mut wtr);
+		if let Err(err) = (*client).sender_pubsub.send(msg) {
+		  	  return false;
+			  log(format!("rd_request_server_time: {} ",err));
+		  }else{
+		  	  return true;
+		  }
+	}
+
+}
+#[no_mangle]
+pub fn rd_request_server_time(client: *mut Client, req: u8)->u64{
+	unsafe{
+		let mut msg = vec![1u8];
+		msg[1]=req;
+		let mut encoded: Vec<u8> =  Vec::new();
+		msg.append(&mut encoded);
+		  let requestedTime = rd_system_time();
+		  if let Err(err) = (*client).sender_pubsub.send(msg) {
 		  	  return 0;
 			  log(format!("rd_request_server_time: {} ",err));
 		  }else{
@@ -100,6 +121,19 @@ pub fn rd_request_server_time(client: *mut Client)->u64{
 #[no_mangle]
 pub fn rd_system_time()->u64{
 	return time::precise_time_ns();
+}
+#[no_mangle]
+pub fn rd_time_delta_ns(time1:u64,time2:u64)->u64{
+let a : Duration = Duration::nanoseconds(time1 as i64);
+let b : Duration = Duration::nanoseconds(time2 as i64);
+match b.checked_sub(&a) {
+	Some(x)=>{match x.num_nanoseconds(){
+				Some(y)=>return y as u64,
+				None=>return 0
+				}
+			},
+			None=>return 0
+	}
 }
 #[no_mangle]
 pub fn rd_netclient_msg_push(client: *mut Client, bytes: *const u8, count: u32) -> bool {

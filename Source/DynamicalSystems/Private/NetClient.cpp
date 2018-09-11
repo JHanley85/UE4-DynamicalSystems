@@ -91,6 +91,19 @@ void ANetClient::BeginPlay()
         NetClients.Add(Uuid, -1);
         UE_LOG(RustyNet, VeryVerbose, TEXT("NetClient BeginPlay %i"), Uuid);
     }
+	GetWorld()->GetTimerManager().SetTimer(ServerTimeHandle, this, &ANetClient::RequestServerTime, ServerTimeFrequency, true);
+	GetWorld()->GetTimerManager().SetTimer(RegistrationHandle, this, &ANetClient::RegisterPlayer, 2.0f, true);
+	GetWorld()->GetTimerManager().SetTimer(PingHandle, this, &ANetClient::SendPing, 0.5f, true);
+	
+		
+}
+void ANetClient::RegisterPlayer() {
+	if (!Registered) {
+		rd_register(Client, Uuid);
+	}
+	else {
+		GetWorld()->GetTimerManager().ClearTimer(RegistrationHandle);
+	}
 }
 
 void ANetClient::BeginDestroy()
@@ -101,6 +114,7 @@ void ANetClient::BeginDestroy()
         rd_netclient_drop(Client);
         Client = NULL;
     }
+	//GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
 }
 void ANetClient::EndPlay(EEndPlayReason::Type EndPlayReason){
 	Super::EndPlay(EndPlayReason);
@@ -110,10 +124,25 @@ void ANetClient::EndPlay(EEndPlayReason::Type EndPlayReason){
 		Client = NULL;
 	}
 }
+void  ANetClient::SendPing() {
+	float CurrentTime = UGameplayStatics::GetRealTimeSeconds(GetWorld());
+	if (CurrentTime > (LastPingTime + PingTimeout)) { // Ping
+		uint8 Msg[5];
+		Msg[0] = 0;
+		//TODO: byte order
+		uint8* bytes = (uint8*)(&Uuid);
+		Msg[1] = bytes[0];
+		Msg[2] = bytes[1];
+		Msg[3] = bytes[2];
+		Msg[4] = bytes[3];
+		rd_netclient_msg_push(Client, Msg, 5);
+		LastPingTime = CurrentTime;
+	}
+}
 void ANetClient::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-    
+	//Need higher resolution.
     float CurrentTime = UGameplayStatics::GetRealTimeSeconds(GetWorld());
     float CurrentAvatarTime = CurrentTime;
 	float CurrentRigidbodyTime = CurrentTime;
@@ -159,18 +188,18 @@ void ANetClient::Tick(float DeltaTime)
         }
     }
     
-    if (CurrentTime > (LastPingTime + PingTimeout)) { // Ping
-		uint8 Msg[5];
-        Msg[0] = 0;
-		//TODO: byte order
-		uint8* bytes = (uint8*)(&Uuid);
-		Msg[1] = bytes[0];
-		Msg[2] = bytes[1];
-		Msg[3] = bytes[2];
-		Msg[4] = bytes[3];
-        rd_netclient_msg_push(Client, Msg, 5);
-        LastPingTime = CurrentTime;
-    }
+  //  if (CurrentTime > (LastPingTime + PingTimeout)) { // Ping
+		//uint8 Msg[5];
+  //      Msg[0] = 0;
+		////TODO: byte order
+		//uint8* bytes = (uint8*)(&Uuid);
+		//Msg[1] = bytes[0];
+		//Msg[2] = bytes[1];
+		//Msg[3] = bytes[2];
+		//Msg[4] = bytes[3];
+  //      rd_netclient_msg_push(Client, Msg, 5);
+  //      LastPingTime = CurrentTime;
+  //  }
     
     if (CurrentAvatarTime > LastAvatarTime + 0.1) { // Avatar
 		if (IsValid(Avatar) && !Avatar->IsNetProxy) {
@@ -223,11 +252,8 @@ void ANetClient::Tick(float DeltaTime)
 		}
 		LastRigidbodyTime = CurrentRigidbodyTime;
 	}
-	if (!ServerTimeActive) {
-		ServerTimeActive = true;
-		UE_LOG(UE_LOG,LogTemp,TEXT("Current System Time: %i"), rd_system_time);
-		GetWorld()->GetTimerManager().SetTimer(ServerTimeHandle, this, &ANetClient::RequestServerTime, ServerTimeFrequency,false); 
-	}
+	
+
 	int Loop = 0;
 	for (; Loop < 1000; Loop += 1) {
 		RustVec* RustMsg = rd_netclient_msg_pop(Client);
@@ -236,7 +262,7 @@ void ANetClient::Tick(float DeltaTime)
 
 			UE_LOG(RustyNet, VeryVerbose, TEXT("Msg IN %i"), Msg);
 			;
-			if (Msg[0] == ENetAddress::Ping) { // Ping
+			if (Msg[0] == (uint8) ENetAddress::Ping) { // Ping
 				uint32 RemoteUuid = *((uint32*)(Msg + 1));
 				// float* KeyValue = NetClients.Find(RemoteUuid);
 				// if (KeyValue != NULL) {
@@ -245,12 +271,13 @@ void ANetClient::Tick(float DeltaTime)
 				NetClients.Add(RemoteUuid, CurrentTime);
 				RebuildConsensus();
 			}
-			else if (Msg[0] == ENetAddress::World) { // World
-				int64* MsgValue = (int64*)(Msg + 1);
-				UE_LOG(RustyNet, VeryVerbose, TEXT("Msg IN ServerTime MsgValue: %i"),MsgValue);
+			else if (Msg[0] == (uint8)ENetAddress::ServerReq) { // World
 
+				uint64* MsgValue = ((uint64*)(Msg + 1));
+				UE_LOG(RustyNet, VeryVerbose, TEXT("Msg IN ServerTime MsgValue: %i"),MsgValue);
+				OnServerTime(*MsgValue);
 			}
-			else if (Msg[0] == ENetAddress::Avatar ) { // Avatar
+			else if (Msg[0] == (uint8)ENetAddress::Avatar ) { // Avatar
 				AvatarPack* Pack = rd_netclient_dec_avatar(&Msg[1], RustMsg->vec_len - 1);
 				uint32 NetID = Pack->id;
 				UNetAvatar** NetAvatar = NetAvatars.FindByPredicate([NetID](const UNetAvatar* Item) {
@@ -275,7 +302,7 @@ void ANetClient::Tick(float DeltaTime)
 				}
 				rd_netclient_drop_avatar(Pack);
 			}
-			else if (Msg[0] == ENetAddress::RigidBody ) { // Rigidbody
+			else if (Msg[0] == (uint8) ENetAddress::RigidBody ) { // Rigidbody
 				RigidbodyPack* Pack = rd_netclient_dec_rigidbody(&Msg[1], RustMsg->vec_len - 1);
 				uint32 NetID = Pack->id;
 				UNetRigidBody** NetRigidBody = NetRigidBodies.FindByPredicate([NetID](const UNetRigidBody* Item) {
@@ -289,21 +316,21 @@ void ANetClient::Tick(float DeltaTime)
 				}
 				rd_netclient_drop_rigidbody(Pack);
 			}
-			else if (Msg[0] == ENetAddress::Float) { // System Float
+			else if (Msg[0] == (uint8) ENetAddress::Float) { // System Float
 				uint8 MsgSystem = Msg[1];
 				uint8 MsgId = Msg[2];
 				float* MsgValue = (float*)(Msg + 3);
 				UE_LOG(RustyNet, VeryVerbose, TEXT("Msg IN MsgSystem: %u MsgId: %u MsgValue: %f"), Msg[1], Msg[2], *MsgValue);
 				OnSystemFloatMsg.Broadcast(MsgSystem, MsgId, *MsgValue);
 			}
-			else if (Msg[0] == ENetAddress::Int) { // System Int
+			else if (Msg[0] == (uint8) ENetAddress::Int) { // System Int
 				uint8 MsgSystem = Msg[1];
 				uint8 MsgId = Msg[2];
 				int32* MsgValue = (int32*)(Msg + 3);
 				UE_LOG(RustyNet, VeryVerbose, TEXT("Msg IN MsgSystem: %u MsgId: %u MsgValue: %i"), Msg[1], Msg[2], *MsgValue);
 				OnSystemIntMsg.Broadcast(MsgSystem, MsgId, *MsgValue);
 			}
-			else if (Msg[0] == ENetAddress::String ) { // System String
+			else if (Msg[0] == (uint8) ENetAddress::String ) { // System String
 				uint8 MsgSystem = Msg[1];
 				uint8 MsgId = Msg[2];
 				FString MsgValueBase64 = BytesToString(Msg + 3, RustMsg->vec_len - 3);
@@ -312,7 +339,7 @@ void ANetClient::Tick(float DeltaTime)
 				UE_LOG(RustyNet, VeryVerbose, TEXT("Msg IN MsgSystem: %u MsgId: %u MsgValue: %s"), Msg[1], Msg[2], *MsgValue);
 				OnSystemStringMsg.Broadcast(MsgSystem, MsgId, *MsgValue);
 			}
-			else if (Msg[0] == ENetAddress::ByteArray) {
+			else if (Msg[0] == (uint8)ENetAddress::ByteArray) {
 
 				//ArchivePack* ARPack = rd_netclient_dec_archive(&Msg[5], RustMsg->vec_len - 5);
 				//auto data = ARPack->data;
@@ -357,9 +384,16 @@ void ANetClient::Tick(float DeltaTime)
 		}
 	}
 }
+void ANetClient::OnServerTime(uint64 serverTime) {
+	ServerTime = serverTime;
+	if (RequestTime != 0) {
+		uint64 delta = serverTime - RequestTime;
+		FString d_s = FString::Printf(TEXT("%llu"), delta);
+		UE_LOG(LogTemp, Log, TEXT("Current System DElta: %s "), *d_s);
+	}
+}
 void ANetClient::RequestServerTime() {
-	UE_LOG( LogTemp,Log TEXT("Current System Time: %i"), rd_system_time);
-	//	rd_request_server_time(Client);
+	RequestTime= rd_request_server_time(Client, (uint8)ENetServerRequest::Time);
 }
 int32 ANetClient::bitsToInt( const uint8* bits, bool little_endian)
 {
@@ -458,7 +492,7 @@ bool ANetClient::SendByteArray(TArray<uint8> In, int32 guid) {
 	std::vector<uint8> msg;
 
 	msg.resize(In.Num() + 5);
-	msg[0] = ENetAddress::ByteArray;
+	msg[0] = (uint8)ENetAddress::ByteArray;
 	msg[1] = guid;
 	msg[2] = guid >> 8;
 	msg[3] = guid >> 16;
@@ -475,7 +509,7 @@ bool ANetClient::SendByteArray(TArray<uint8> In, int32 guid) {
 }
 bool ANetClient::AR_SendSystemFloatGlobal(int32 System, int32 Id, float Value) {
 	TArray<uint8> Msg = TArray<uint8>();
-	Msg[0] = ENetAddress::Float;
+	Msg[0] = (uint8)ENetAddress::Float;
 	Msg[1] = (uint8)System;
 	Msg[2] = (uint8)Id;
 	AppendSingleFloat(Value,Msg);
@@ -527,7 +561,7 @@ bool  ANetClient::AppendSingleFloat(float Value,TArray<uint8>& AppendTo) {
 }
 bool  ANetClient::AR_SendSystemIntGlobal(int32 System, int32 Id, int32 Value){
 	TArray<uint8> Msg = TArray<uint8>();
-	Msg[0] = ENetAddress::Int;
+	Msg[0] = (uint8)ENetAddress::Int;
 	Msg[1] = (uint8)System;
 	Msg[2] = (uint8)Id;
 	AppendSingleInt(Value, Msg);
@@ -549,7 +583,7 @@ bool ANetClient::AppendSingleInt(uint8 Value, TArray<uint8>& AppendTo)
 bool  ANetClient::AR_SendSystemStringGlobal(int32 System, int32 Id, FString Value) {
 	uint8 Msg[2000];
 	memset(Msg, 0, 2000);
-	Msg[0] = ENetAddress::String;
+	Msg[0] = (uint8)ENetAddress::String;
 	Msg[1] = (uint8)System;
 	Msg[2] = (uint8)Id;
 	int16 Len = StringToBytes(FBase64::Encode(Value), Msg + 3, 1024) + 1;
