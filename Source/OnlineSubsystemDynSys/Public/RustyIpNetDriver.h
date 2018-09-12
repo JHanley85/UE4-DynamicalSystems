@@ -22,15 +22,27 @@ public:
 		RelevantTimeout = 500;
 	}
 	URustyIpNetDriver(const FObjectInitializer& ObjectInitializer);
-	static URustyIpNetDriver Init() {
-		return URustyIpNetDriver();
-	}
-	void InitializeSettings();
-	FURL Server;
-	FURL MumbleServer;
-	FString AudioDevice;
+
+	virtual bool InitBase(bool bInitAsClient, FNetworkNotify* InNotify, const FURL& URL, bool bReuseAddressAndPort, FString& Error)override;
 
 	FSocket * CreateSocket() override;
-	bool InitConnect(FNetworkNotify* InNotify, const FURL& ConnectURL, FString& Error) override;
-	class URustyNetConnection* GetServerConnection();
+	virtual bool InitConnect(FNetworkNotify* InNotify, const FURL& ConnectURL, FString& Error) override;
+
+private:
+	/** Number of bytes that will be passed to FSocket::SetReceiveBufferSize when initializing a server. */
+	UPROPERTY(Config)
+		uint32 _ServerDesiredSocketReceiveBufferBytes;
+
+	/** Number of bytes that will be passed to FSocket::SetSendBufferSize when initializing a server. */
+	UPROPERTY(Config)
+		uint32 _ServerDesiredSocketSendBufferBytes;
+
+	/** Number of bytes that will be passed to FSocket::SetReceiveBufferSize when initializing a client. */
+	UPROPERTY(Config)
+		uint32 _ClientDesiredSocketReceiveBufferBytes;
+
+	/** Number of bytes that will be passed to FSocket::SetSendBufferSize when initializing a client. */
+	UPROPERTY(Config)
+		uint32 _ClientDesiredSocketSendBufferBytes;
+
 };

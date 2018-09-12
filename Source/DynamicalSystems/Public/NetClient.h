@@ -147,6 +147,8 @@ enum class ENetServerRequest : uint8 {
 	RPC=4,
 	PropertyRep=5,
 	FunctionRep=6,
+	RepAuthority =7,
+	RepState=8
 };
 UCLASS( ClassGroup=(DynamicalSystems), meta=(BlueprintSpawnableComponent) )
 class DYNAMICALSYSTEMS_API ANetClient : public AActor

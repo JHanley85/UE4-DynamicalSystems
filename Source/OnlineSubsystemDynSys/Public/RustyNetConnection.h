@@ -5,19 +5,20 @@
 #include "CoreMinimal.h"
 #include "Engine/NetConnection.h"
 #include "NetClient.h"
-#include "RustyWorldSettings.h"
 #include "IpConnection.h"
 #include "RustyNetConnection.generated.h"
 
 typedef TArray<uint8> Header;
 typedef TArray<uint8> NetBytes;
 typedef uint32 NetIdentifier;
-
+class ARustyWorldSettings;
 struct RustyNetId : public FUniqueNetId {
 
 };
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnRegisterComplete, int32,RegisteredNetId);
 DECLARE_DYNAMIC_DELEGATE(FOnConnectionTick);
+
 /**
  * 
  */
@@ -28,8 +29,7 @@ class ONLINESUBSYSTEMDYNSYS_API URustyNetConnection : public UIpConnection
 public:
 	URustyNetConnection(const FObjectInitializer& ObjectInitializer);
 	virtual void Tick() override;
-	//UChannel* CreateChannel(EChannelType Type, bool bOpenedLocally, int32 ChannelIndex = INDEX_NONE) override; 
-	static bool Build_ServerRequest(const ENetServerRequest request ,NetBytes& Out,const NetIdentifier Sender, const NetIdentifier PropertyId=0,const NetBytes PropertyValue=NetBytes()) {
+	bool Build_ServerRequest(const ENetServerRequest request ,NetBytes& Out,const NetIdentifier Sender, const NetIdentifier PropertyId=0,const NetBytes PropertyValue=NetBytes()) {
 		switch (request) {
 		case ENetServerRequest::Ack:
 			return Build_Ping(Out, Sender);
@@ -53,47 +53,8 @@ public:
 			return false;
 		}
 	}
-	void Recv_ServerRequest(const NetBytes In) {
-		NetIdentifier Sender = 0;
-		NetIdentifier PropId = 0;
-		int32 uid = 0;
-		NetBytes Value = NetBytes();
-		if (In.Num() > 2) {
-			if (In[0] == (uint8)ENetAddress::ServerReq) {
-				switch (In[1]) {
-				case (uint8) ENetServerRequest::Ack:
-					URustyNetConnection::Recv_Ping(In);
-					break;
-				case (uint8) ENetServerRequest::Register:
-					URustyNetConnection::Recv_Register(In, uid);
-					settings->UserId;
-					_playerId = uid;
-					SetId(uid);
-					break;
-				case (uint8) ENetServerRequest::Time:
-					uint64 ServerTime;
-					URustyNetConnection::Recv_Time(In,ServerTime);
-					break;
-				case (uint8)ENetServerRequest::FunctionRep:
-					URustyNetConnection::Recv_FunctionRep(In,Sender,PropId,Value);
-					//Do Something;
-					break;
-				case (uint8)ENetServerRequest::CallbackUpdate:
-					URustyNetConnection::Recv_CallbackRep(In, Sender, PropId, Value);
-					//Do Something;
-					break;
-				case (uint8)ENetServerRequest::PropertyRep:
-					URustyNetConnection::Recv_PropertyRep(In, Sender, PropId, Value);
-					TriggerPropertyReplication(PropId, Value);
-					//Do Something;
-					break;
-				default:
-					break;
-				}
-			}
-		}
-	}
-	static void Recv_PropertyRep(const NetBytes In, NetIdentifier& Sender, NetIdentifier& PropertyId,NetBytes& Value) {
+	void Recv_ServerRequest(const NetBytes In);
+	void Recv_PropertyRep(const NetBytes In, NetIdentifier& Sender, NetIdentifier& PropertyId,NetBytes& Value) {
 		const uint8 uidStartBits = 2;
 		const uint8 pidStartBits = uidStartBits + 4;
 		const uint8 ValueStart = pidStartBits + 4;
@@ -123,7 +84,7 @@ public:
 		PidBits[3] = In[pidStartBits + 3];
 #endif
 	}
-	static bool Build_PropertyRep(Header& Out,const NetIdentifier Sender,const NetIdentifier PropertyId, NetBytes Value) {
+	bool Build_PropertyRep(Header& Out,const NetIdentifier Sender,const NetIdentifier PropertyId, NetBytes Value) {
 		Out.SetNum(2);
 		Out[0] = (uint8)ENetAddress::ServerReq;
 		Out[1] = (uint8)ENetServerRequest::PropertyRep;
@@ -132,7 +93,7 @@ public:
 		Out.Append(ToBytesNetId(PropertyId));
 		return true;
 	}
-	static void Recv_FunctionRep(const NetBytes In, NetIdentifier& Sender, NetIdentifier& PropertyId, NetBytes& Value) {
+	void Recv_FunctionRep(const NetBytes In, NetIdentifier& Sender, NetIdentifier& PropertyId, NetBytes& Value) {
 		const uint8 uidStartBits = 2;
 		const uint8 pidStartBits = uidStartBits + 4;
 		const uint8 ValueStart = pidStartBits + 4;
@@ -162,7 +123,7 @@ public:
 		PidBits[3] = In[pidStartBits + 3];
 #endif
 	}
-	static bool Build_FunctionRep(Header& Out,const NetIdentifier Sender, const NetIdentifier FunctionId, NetBytes Value) {
+	 bool Build_FunctionRep(Header& Out,const NetIdentifier Sender, const NetIdentifier FunctionId, NetBytes Value) {
 		Out.SetNum(2);
 		Out[0] = (uint8)ENetAddress::ServerReq;
 		Out[1] = (uint8)ENetServerRequest::FunctionRep;
@@ -171,7 +132,7 @@ public:
 		Out.Append(ToBytesNetId(FunctionId));
 		return true;
 	}
-	static void Recv_CallbackRep(const NetBytes In, NetIdentifier& Sender, NetIdentifier& PropertyId, NetBytes& Value) {
+	 void Recv_CallbackRep(const NetBytes In, NetIdentifier& Sender, NetIdentifier& PropertyId, NetBytes& Value) {
 		const uint8 uidStartBits = 2;
 		const uint8 pidStartBits = uidStartBits + 4;
 		const uint8 ValueStart = pidStartBits + 4;
@@ -201,7 +162,7 @@ public:
 		PidBits[3] = In[pidStartBits + 3];
 #endif
 	}
-	static bool Build_CallbackRep(Header& Out, const NetIdentifier Sender, const NetIdentifier CallbackId, NetBytes Value) {
+	bool Build_CallbackRep(Header& Out, const NetIdentifier Sender, const NetIdentifier CallbackId, NetBytes Value) {
 		Out.SetNum(2);
 		Out[0] = (uint8)ENetAddress::ServerReq;
 		Out[1] = (uint8)ENetServerRequest::CallbackUpdate;
@@ -210,18 +171,16 @@ public:
 		Out.Append(ToBytesNetId(CallbackId));
 		return true;
 	}
-	static bool Build_Ping(Header& Out, NetIdentifier Sender) {
+	 bool Build_Ping(Header& Out, NetIdentifier Sender) {
 		Out = TArray<uint8>();
-		UE_LOG(LogTemp, Log, TEXT("send 1 Ping {%u}"), Sender);
 		Out.SetNum(2);
 		Out[0] = (uint8) ENetAddress::ServerReq;
 		Out[1] = (uint8) ENetServerRequest::Ack;
 		Out.Shrink();
 		Out.Append(ToBytesNetId(Sender));
-		UE_LOG(LogTemp, Log, TEXT("send 4 Ping {%u}"), Sender);
 		return Out.Num() == 6;
 	}
-	static void Recv_Ping(const NetBytes In) {
+	 void Recv_Ping(const NetBytes In) {
 		uint8 StartBits = 2;
 		TArray<uint8> GuidBits = TArray<uint8>();
 		GuidBits.SetNum(4);
@@ -244,7 +203,7 @@ public:
 		UE_LOG(LogTemp, Log, TEXT("Rec'd Ping {%u}"), uid);
 
 	}
-	static bool Build_Register(Header& Out, NetIdentifier Sender) {
+	 bool Build_Register(Header& Out, NetIdentifier Sender) {
 		Out = TArray<uint8>();
 		Out.SetNum(2);
 		Out[0] = (uint8) ENetAddress::ServerReq;
@@ -253,7 +212,7 @@ public:
 		Out.Append(ToBytesNetId(Sender));
 		return Out.Num()==6;
 	}
-	static void Recv_Register(const NetBytes In,int32& OutId) {
+	void Recv_Register(const NetBytes In,int32& OutId) {
 		uint8 StartBits = 2;
 		TArray<uint8> GuidBits = TArray<uint8>();
 		GuidBits.SetNum(4);
@@ -278,7 +237,7 @@ public:
 		OutId = uid;
 	}
 	static FOnRegisterComplete OnRegisterComplete;
-	static bool Build_Time(Header& Out,NetIdentifier Sender) {
+	bool Build_Time(Header& Out,NetIdentifier Sender) {
 		Out = TArray<uint8>();
 		Out.SetNum(2);
 		Out[0] = (uint8) ENetAddress::ServerReq;
@@ -287,7 +246,7 @@ public:
 		Out.Append(ToBytesNetId(Sender));
 		return Out.Num() == 6;
 	}
-	static void Recv_Time(const NetBytes In,uint64& TimeOut) {
+	void Recv_Time(const NetBytes In,uint64& TimeOut) {
 		uint8 StartBits = 2;
 		TArray<uint8> GuidBits = TArray<uint8>();
 		GuidBits.SetNum(4);
@@ -306,6 +265,7 @@ public:
 	ARustyWorldSettings* settings;
 
 	FString GetStateString() {
+		if (this == nullptr) return "";
 		if (State) {
 			switch (State) {
 			case EConnectionState::USOCK_Closed:
@@ -333,7 +293,6 @@ public:
 		return msg;
 	}
 	virtual FString Describe() override;
-	FSocket* Socket;
 	UFUNCTION(BlueprintCallable, Category = OSS, meta = (AutoCreateRefTerm = "Value"))
 		bool SendServerRequest(ENetServerRequest RequestType, TArray<uint8> Value, int32 PropertyId = 0);
 	void RecvMesage(const NetBytes In);
@@ -342,7 +301,7 @@ public:
 	void SetId(int32 newId);
 	static const TSharedPtr<const FUniqueNetId> playerIdptr;
 
-	void TriggerPropertyReplication(NetIdentifier PropId, NetBytes In) {
-		UE_LOG(LogTemp,Log,TEXT("Received PropId {%i}"), PropId);
-	}
+	void TriggerPropertyReplication(NetIdentifier PropId, NetBytes In);
+	bool Compress(NetBytes Msg, NetBytes& Out);
+	bool Decompress(NetBytes Compressed, NetBytes& Decompressed);
 };

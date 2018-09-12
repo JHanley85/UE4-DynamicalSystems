@@ -13,61 +13,6 @@
 
 class FOnlineSubsystemDynSys;
 
-class FOSSGuID : public FNetworkGUID {
-public:
-	FOSSGuID()
-	{
-		Value = (0);
-	}
-	FOSSGuID(uint32 V) {
-		Value = V;
-	}
-public:
-	uint8 gSession;
-	uint8 gClass;
-	uint8 gObject;
-	uint8 gProperty;
-
-	static uint32 IntPack(uint8 _session, uint8 _class, uint8 _object, uint8 _property) {
-		uint8_t a[4] = { _session,_class,_object,_property };
-		uint32_t b = *((uint32_t*)a);
-		return b;
-	}
-	static void IntUnpack(uint32 In, uint8& _session, uint8& _class, uint8& _object, uint8& _property) {
-		uint32_t c = In;
-		uint8_t d[4] = { 0 };
-		for (int i = 0; i<4; ++i)
-			d[i] = ((uint8_t*)&c)[3 - i];
-		_session = d[3];
-		_class = d[2];
-		_object = d[1];
-		_property = d[0];
-	}
-	FOSSGuID(const uint8 _session, const uint8 _class, const uint8 _object, const uint8 _property) {
-		SetValues(_session, _class, _object, _property);
-	}
-protected:
-	void SetValues(const uint8 _session, const uint8 _class, const uint8 _object, const uint8 _property) {
-		Value = IntPack(_session, _class, _object, _property);
-		gSession = _session; gClass = _class; gObject = _object; gProperty = _property;
-	}
-public:
-	void ParseValues(uint8& _session, uint8& _class, uint8& _object, uint8& _property) {
-		IntUnpack(Value, _session, _class, _object, _property);
-	}
-
-	static bool IsSameObject(const FOSSGuID A, const FOSSGuID B) {
-
-		return A.gSession == B.gSession && A.gClass == B.gClass && A.gObject == B.gObject;
-	}
-	static bool IsSameClass(const FOSSGuID A, const FOSSGuID B) {
-		return A.gSession == B.gSession && A.gClass == B.gClass;
-	}
-	FString ToString() {
-		return FString::Printf(TEXT("%i:%i:%i:%i"), gSession, gClass, gObject, gProperty);
-	}
-};
-
 /**
  * Interface definition for the online services session services 
  * Session services are defined as anything related managing a session 

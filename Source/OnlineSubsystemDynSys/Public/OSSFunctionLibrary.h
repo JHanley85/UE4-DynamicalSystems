@@ -17,7 +17,6 @@
 #include "DelegateInstanceInterface.h"
 #include "DelegateInstancesImpl.h"
 
-#include "OnlineSessionInterfaceDynSys.h"
 #include "OnlineSubsystem.h"
 #include "OnlineSessionSettings.h"
 #include "Interfaces/OnlineSessionInterface.h"
@@ -27,18 +26,98 @@
 #include "OSSFunctionLibrary.generated.h"
 #define PORT_COUNT 3
 
+
+class FOSSGuID : public FNetworkGUID {
+public:
+	FOSSGuID()
+	{
+		Value = (0);
+	}
+	FOSSGuID(uint32 V) {
+		Value = V;
+	}
+public:
+	uint8 gSession;
+	uint8 gClass;
+	uint8 gObject;
+	uint8 gProperty;
+
+	static uint32 IntPack(uint8 _session, uint8 _class, uint8 _object, uint8 _property) {
+		uint8_t a[4] = { _session,_class,_object,_property };
+		uint32_t b = *((uint32_t*)a);
+		return b;
+	}
+	static void IntUnpack(uint32 In, uint8& _session, uint8& _class, uint8& _object, uint8& _property) {
+		uint32_t c = In;
+		uint8_t d[4] = { 0 };
+		for (int i = 0; i<4; ++i)
+			d[i] = ((uint8_t*)&c)[3 - i];
+		_session = d[3];
+		_class = d[2];
+		_object = d[1];
+		_property = d[0];
+	}
+	FOSSGuID(const uint8 _session, const uint8 _class, const uint8 _object, const uint8 _property) {
+		SetValues(_session, _class, _object, _property);
+	}
+protected:
+	void SetValues(const uint8 _session, const uint8 _class, const uint8 _object, const uint8 _property) {
+		Value = IntPack(_session, _class, _object, _property);
+		gSession = _session; gClass = _class; gObject = _object; gProperty = _property;
+	}
+public:
+	void ParseValues(uint8& _session, uint8& _class, uint8& _object, uint8& _property) {
+		IntUnpack(Value, _session, _class, _object, _property);
+	}
+
+	static bool IsSameObject(const FOSSGuID A, const FOSSGuID B) {
+
+		return A.gSession == B.gSession && A.gClass == B.gClass && A.gObject == B.gObject;
+	}
+	static bool IsSameClass(const FOSSGuID A, const FOSSGuID B) {
+		return A.gSession == B.gSession && A.gClass == B.gClass;
+	}
+	FString ToString() {
+		return FString::Printf(TEXT("%i:%i:%i:%i"), gSession, gClass, gObject, gProperty);
+	}
+};
+
+
 DECLARE_DYNAMIC_DELEGATE_OneParam(FSnapshotDelegate, FPoseSnapshot, snapshot);
 
 typedef TArray<uint8> ByteBuffer;
 
 USTRUCT(BlueprintType)
-struct FNetSnapshotPose {
+struct FNetPoseSnapshot: public FPoseSnapshot{
 	GENERATED_USTRUCT_BODY()
 public:
-	UPROPERTY(BlueprintReadWrite)
-		TArray<FTransform> LocalTransforms;
-	UPROPERTY(BlueprintReadWrite)
+	UPROPERTY(BlueprintReadWrite,EditAnywhere)
 		uint8 MeshId;
+	bool Serialize(FArchive &Ar) {
+		Ar << MeshId;
+		Ar << LocalTransforms;
+		return LocalTransforms.Num() > 0;
+	}
+	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess) {
+		Ar << MeshId;
+		Ar << LocalTransforms;
+		bOutSuccess = true;
+		return true;
+	}
+	friend FArchive& operator<<(FArchive& Ar, FNetPoseSnapshot& V)
+	{
+		return Ar << V.MeshId << V.LocalTransforms;
+	}
+};
+template<>
+struct TStructOpsTypeTraits<FNetPoseSnapshot> : public TStructOpsTypeTraitsBase2<FNetPoseSnapshot>
+{
+	enum
+	{
+		WithSerializer = true,
+		WithNetSerializer = true,
+	//	WithNetDeltaSerializer = true
+	};
 };
 /**
  * 
@@ -356,21 +435,21 @@ public:
 
 
 #pragma region Templates
-	UFUNCTION(BlueprintCallable)
-		static void SnapshotPoseFromBytes(FNetSnapshotPose& Pose,const TArray<uint8> In) {
-		FMemoryReader ARWriter = FMemoryReader(In);
-		FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Pose);
-	}
-	UFUNCTION(BlueprintCallable)
-		static void SnapshotPoseToBytes(FNetSnapshotPose Pose, TArray<uint8>& Out) {
-		FMemoryWriter ARWriter = FMemoryWriter(Out);
-		FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Pose);
-	}
-	UFUNCTION(BlueprintCallable)
-	static void StructToBytes(TSubclassOf<UStruct> Data,UStruct* Data_obj, TArray<uint8>& Out) {
-		FMemoryWriter ARWriter = FMemoryWriter(Out);
-		FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Data);
-	}
+	//UFUNCTION(BlueprintCallable)
+	//	static void SnapshotPoseFromBytes(FNetSnapshotPose& Pose,const TArray<uint8> In) {
+	//	FMemoryReader ARWriter = FMemoryReader(In);
+	//	FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Pose);
+	//}
+	//UFUNCTION(BlueprintCallable)
+	//	static void SnapshotPoseToBytes(FNetSnapshotPose Pose, TArray<uint8>& Out) {
+	//	FMemoryWriter ARWriter = FMemoryWriter(Out);
+	//	FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Pose);
+	//}
+	//UFUNCTION(BlueprintCallable)
+	//static void StructToBytes(TSubclassOf<UStruct> Data,UStruct* Data_obj, TArray<uint8>& Out) {
+	//	FMemoryWriter ARWriter = FMemoryWriter(Out);
+	//	FNetSnapshotPose::StaticStruct()->SerializeBin(ARWriter, &Data);
+	//}
 #pragma endregion Templates
 };
 
