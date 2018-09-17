@@ -31,7 +31,7 @@ public:
 	virtual void Tick() override;
 	bool Build_ServerRequest(const ENetServerRequest request ,NetBytes& Out,const NetIdentifier Sender, const NetIdentifier PropertyId=0,const NetBytes PropertyValue=NetBytes()) {
 		switch (request) {
-		case ENetServerRequest::Ack:
+		case ENetServerRequest::Ping:
 			return Build_Ping(Out, Sender);
 			break;
 		case ENetServerRequest::CallbackUpdate:
@@ -49,11 +49,39 @@ public:
 		case ENetServerRequest::Register:
 			return Build_Register(Out, Sender);
 			break;
+		case ENetServerRequest::Closing:
+			Out = NetBytes();
+			Out.SetNum(2);
+			Out[0] = 1;
+			Out[1] =(uint8) ENetServerRequest::Closing;
+			return true;
 		default:
 			return false;
 		}
 	}
 	void Recv_ServerRequest(const NetBytes In);
+	void Recv_Close(const NetBytes In, NetIdentifier& Sender) {
+		const uint8 uidStartBits = 2;
+		TArray<uint8> UidBits = TArray<uint8>();
+		UidBits.SetNumZeroed(4, true);
+#if PLATFORM_LITTLE_ENDIAN
+		UidBits[3] = In[uidStartBits];
+		UidBits[2] = In[uidStartBits + 1];
+		UidBits[1] = In[uidStartBits + 2];
+		UidBits[0] = In[uidStartBits + 3];
+#else
+		UidBits[0] = In[uidStartBits];
+		UidBits[1] = In[uidStartBits + 1];
+		UidBits[2] = In[uidStartBits + 2];
+		UidBits[3] = In[uidStartBits + 3];
+#endif
+
+		Sender = ((UidBits[0] << 24) |
+			(UidBits[1] << 16) |
+			(UidBits[2] << 8) |
+			UidBits[3]);
+	}
+	void Recv_Join(const NetBytes In, NetIdentifier& Sender);
 	void Recv_PropertyRep(const NetBytes In, NetIdentifier& Sender, NetIdentifier& PropertyId,NetBytes& Value) {
 		const uint8 uidStartBits = 2;
 		const uint8 pidStartBits = uidStartBits + 4;
@@ -83,6 +111,10 @@ public:
 		PidBits[2] = In[pidStartBits + 2];
 		PidBits[3] = In[pidStartBits + 3];
 #endif
+		PropertyId = ((PidBits[0] << 24) |
+			(PidBits[1] << 16) |
+			(PidBits[2] << 8) |
+			PidBits[3]);
 	}
 	bool Build_PropertyRep(Header& Out,const NetIdentifier Sender,const NetIdentifier PropertyId, NetBytes Value) {
 		Out.SetNum(2);
@@ -175,7 +207,7 @@ public:
 		Out = TArray<uint8>();
 		Out.SetNum(2);
 		Out[0] = (uint8) ENetAddress::ServerReq;
-		Out[1] = (uint8) ENetServerRequest::Ack;
+		Out[1] = (uint8) ENetServerRequest::Ping;
 		Out.Shrink();
 		Out.Append(ToBytesNetId(Sender));
 		return Out.Num() == 6;
@@ -212,30 +244,7 @@ public:
 		Out.Append(ToBytesNetId(Sender));
 		return Out.Num()==6;
 	}
-	void Recv_Register(const NetBytes In,int32& OutId) {
-		uint8 StartBits = 2;
-		TArray<uint8> GuidBits = TArray<uint8>();
-		GuidBits.SetNum(4);
-#if PLATFORM_LITTLE_ENDIAN
-		GuidBits[3] = In[StartBits];
-		GuidBits[2] = In[StartBits + 1];
-		GuidBits[1] = In[StartBits + 2];
-		GuidBits[0] = In[StartBits + 3];
-#else
-		GuidBits[0] = In[StartBits];
-		GuidBits[1] = In[StartBits + 1];
-		GuidBits[2] = In[StartBits + 2];
-		GuidBits[3] = In[StartBits + 3];
-#endif
-		NetIdentifier uid = 0;
-		uid = ((GuidBits[0] << 24) |
-			(GuidBits[1] << 16) |
-			(GuidBits[2] << 8) |
-			GuidBits[3]);
-		UE_LOG(LogTemp, Log, TEXT("New UUID: %u"), uid);
-		OnRegisterComplete.Broadcast(uid);
-		OutId = uid;
-	}
+	 void Recv_Register(const NetBytes In, int32& OutId);
 	static FOnRegisterComplete OnRegisterComplete;
 	bool Build_Time(Header& Out,NetIdentifier Sender) {
 		Out = TArray<uint8>();
@@ -304,4 +313,11 @@ public:
 	void TriggerPropertyReplication(NetIdentifier PropId, NetBytes In);
 	bool Compress(NetBytes Msg, NetBytes& Out);
 	bool Decompress(NetBytes Compressed, NetBytes& Decompressed);
+	
+	void SendPing() {
+		NetBytes Bytes = NetBytes();
+		if(Build_Ping(Bytes, _playerId))
+			SendServerRequest(ENetServerRequest::Ping, Bytes);
+	}
+	virtual void CleanUp() override;
 };

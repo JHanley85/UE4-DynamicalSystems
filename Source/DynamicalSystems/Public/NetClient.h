@@ -142,13 +142,15 @@ UENUM(BlueprintType)
 enum class ENetServerRequest : uint8 {
 	Time = 0,
 	Register = 1,
-	Ack = 2,
+	Ping = 2,
 	CallbackUpdate=3,
 	RPC=4,
 	PropertyRep=5,
 	FunctionRep=6,
 	RepAuthority =7,
-	RepState=8
+	RepState=8,
+	NewClientConnected=9,
+	Closing=10
 };
 UCLASS( ClassGroup=(DynamicalSystems), meta=(BlueprintSpawnableComponent) )
 class DYNAMICALSYSTEMS_API ANetClient : public AActor

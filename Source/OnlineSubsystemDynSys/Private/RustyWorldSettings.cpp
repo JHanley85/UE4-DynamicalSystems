@@ -36,30 +36,41 @@ ARustyWorldSettings::ARustyWorldSettings(const FObjectInitializer& ObjectInitial
 }
 void ARustyWorldSettings::BeginPlay() {
 	Super::BeginPlay();
+
 }
 UNetConnection* ARustyWorldSettings::GetConnection() {
 	UWorld* world = GetWorld();
 	if (world == nullptr) return nullptr;
 	NetDriver = ((URustyIpNetDriver*)world->GetNetDriver());
 	if (NetDriver == nullptr) return nullptr;
-	NetConnection= (URustyNetConnection*)NetDriver->GetServerConnection();
+	NetConnection = (URustyNetConnection*)NetDriver->GetServerConnection();
 	return NetConnection;
 }
 void ARustyWorldSettings::CheckProperties() {
-	for (auto pair : PropertyMap) {
-		FBufferArchive buf = FBufferArchive();
-		if (PropChanged(pair.Key,buf)) {
-			TArray<uint8> Bytes;
-			UProperty* Property = pair.Value;
-			if(Bytes.Num() > 1){
-				SerializedProp.Add(pair.Key,buf);
-				NetConnection->Build_PropertyRep(Bytes, UserId, pair.Key, Bytes);
+	if (URustyNetConnection::_playerId != 0) {
+		for (auto pair : PropertyMap) {
+			FBufferArchive buf = FBufferArchive();
+			if (PropChanged(pair.Key, buf)) {
+				TArray<uint8> Bytes;
+				UProperty* Property = pair.Value;
+				if (Bytes.Num() > 1) {
+					SerializedProp.Add(pair.Key, buf);
+					NetConnection->Build_PropertyRep(Bytes, UserId, pair.Key, Bytes);
 
-				NetConnection->SendServerRequest(ENetServerRequest::FunctionRep, Bytes, pair.Key);
+					NetConnection->SendServerRequest(ENetServerRequest::FunctionRep, Bytes, pair.Key);
+				}
 			}
 		}
 	}
-	NetDriver->ServerConnection->Tick();
+	if(NetDriver->IsNetResourceValid())
+		if (NetDriver->ServerConnection!=nullptr) {
+			NetDriver->ServerConnection->Tick();
+			NetDriver->ServerConnection->FlushNet();
+			NetDriver->TickFlush(0.1);
+		}
+		else {
+			UE_LOG(LogTemp, Log, TEXT("Something Went Wrong"));
+		}
 }
 void ARustyWorldSettings::OnActorChannelOpen(FInBunch & InBunch,UNetConnection * Connection) {
 	Super::OnActorChannelOpen(InBunch, Connection);
@@ -74,9 +85,10 @@ void ARustyWorldSettings::Setup() {
 	FString _Error;
 	NetDriver = NewObject<URustyIpNetDriver>(this, "RustyIPNetDriver");
 	world->SetNetDriver(NetDriver);
-	
+	NetDriver->World = world;
 	NetDriver->InitConnect((FNetworkNotify*)this, ServerUrl, _Error);
 	NetConnection =(URustyNetConnection*) NetDriver->ServerConnection;
+	NetConnection->settings = this;
 	///
 	TSharedRef<FInternetAddr> i4addr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
 	TArray<FString> ips;
@@ -101,6 +113,10 @@ void ARustyWorldSettings::Setup() {
 
 	UE_LOG(LogTemp, Log, TEXT("%s"), *NetConnection->GetDriver()->GetName());
 	((URustyNetConnection*)NetConnection)->SendServerRequest(ENetServerRequest::Register, Bytes);
+
+
+	world->GetTimerManager().SetTimer(PingTimer, NetConnection, &URustyNetConnection::SendPing,PingFreq, true);
+	world->GetTimerManager().SetTimer(ReplicationProperties, this, &ARustyWorldSettings::CheckProperties, PropertyChangeFreq, true);
 }
 
 

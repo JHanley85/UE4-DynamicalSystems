@@ -4,14 +4,22 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/WorldSettings.h"
+#include "GameFramework/PlayerState.h"
 #include "PoseSnapshot.h"
 #include "OSSFunctionLibrary.h"
 #include "Networking.h"
 #include "Runtime/Core/Public/Serialization/BufferArchive.h"
+#include "Runtime/Engine/Classes/GameFramework/GameSession.h"
+#include "Runtime/Engine/Classes/GameFramework/GameMode.h"
 #include "RustyNetConnection.h"
 
 #include "RustyWorldSettings.generated.h"
 DECLARE_DELEGATE(FInvokeProxy);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRemoteClientConnected, int32,id);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRemoteClientDisconnected, int32,id);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FAvatarUpdate, TArray<uint8>,Bytes );
+
 class URustyNetConnection;
 class URustyIpNetDriver;
 USTRUCT(BlueprintType)
@@ -306,5 +314,82 @@ public:
 		}
 		return (int32)nguid.Value;
 	}
-		
+	UPROPERTY(EditAnywhere,Category=Network)
+	float PingFreq = 1.0f;
+	FTimerHandle PingTimer;
+	UPROPERTY(EditAnywhere,Category=Network)
+	float PropertyChangeFreq = 0.2f;
+	FTimerHandle ReplicationProperties;
+
+
+	UPROPERTY(BlueprintAssignable,Category=Networking)
+	FRemoteClientConnected OnRemotePlayerJoin;
+	UPROPERTY(BlueprintAssignable, Category = Networking)
+	FRemoteClientDisconnected OnRemotePlayerLeave;
+	TMap<int32, UPlayer*> Players;
+	void RegisterLocalClient(int32 localId) {
+		AGameModeBase* GameMode = GetWorld()->GetAuthGameMode();
+		AGameSession* Session = GetWorld()->GetAuthGameMode()->GameSession;
+		UE_LOG(LogTemp, Log, TEXT(" Session :{%s}"), *Session->GetName());
+		APlayerController* PC = nullptr;
+		UPlayer* player = NewObject<UPlayer>();
+		FString NetID = FString::Printf(TEXT("&u"), localId);
+		const TSharedRef<const FUniqueNetId> UniqueNetId = MakeShareable(new FUniqueNetIdString(NetID));
+		auto repl = FUniqueNetIdRepl(UniqueNetId);
+		PC = GetWorld()->GetFirstPlayerController();
+		PC->Player = player;
+		PC->PlayerState->PlayerId = UserId;
+		PC->PlayerState->SetPlayerName(FString("LocalPlayer"));
+		PC->PlayerState->PlayerId = localId;
+		PC->PlayerState->SetUniqueId(UniqueNetId);
+	}
+	void RegisterRemoteClient(int32 remoteId) {
+		AGameModeBase* GameMode =GetWorld()->GetAuthGameMode();
+		AGameSession* Session = GetWorld()->GetAuthGameMode()->GameSession;
+		UE_LOG(LogTemp, Log, TEXT(" Session :{%s}"), *Session->GetName());
+		APlayerController* PC = nullptr;
+		if (GameMode)
+		{
+			UPlayer* player = NewObject<UPlayer>();
+			FString NetID = FString::Printf(TEXT("&u"), remoteId);
+			const TSharedRef<const FUniqueNetId> UniqueNetId = MakeShareable(new FUniqueNetIdString(NetID));
+			auto repl = FUniqueNetIdRepl(UniqueNetId);
+
+			if (Players.Contains(remoteId)) {
+				if (Players.FindRef(remoteId) != nullptr) {
+					return;
+				}
+			}
+			FString Options = FString();
+			FString Address = FString();
+			FString ErrorMsg = FString();
+			//GameMode->PreLogin(Options,Address, UniqueNetId, ErrorMsg);
+
+			Players.Add(remoteId, player);
+			PC = GameMode->Login(player, ENetRole::ROLE_None, FString(""), FString(""), repl, ErrorMsg);
+			//PC->PlayerState->bIsABot = true;
+			PC->Player = nullptr; //makes it non-local....
+			int32 pawn_id = 0;
+
+			PC->PlayerState->SetPlayerName(FString::Printf(TEXT("Remote Player %u"), remoteId));
+			RegisterObject(PC->GetPawn(), pawn_id);
+			PC->PlayerState->PlayerId = remoteId;
+			PC->PlayerState->SetUniqueId(UniqueNetId);
+			GameMode->PostLogin(PC);
+
+
+			if (PC != nullptr) {
+				PC->PlayerState->PlayerId = remoteId;
+				PC->PlayerState->SetUniqueId(UniqueNetId);
+
+			}
+		}
+		//if (OnRemotePlayerJoin.IsBound())
+		//OnRemotePlayerJoin.Broadcast(remoteId);
+	}
+
+	void DeregisterRemoteClient(int32 remoteId) {
+		if (OnRemotePlayerLeave.IsBound())
+		OnRemotePlayerLeave.Broadcast(remoteId);
+	}
 };

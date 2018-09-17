@@ -47,7 +47,8 @@ bool URustyIpNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, c
 		UE_LOG(LogNet, Warning, TEXT("Unable to find socket subsystem"));
 		return false;
 	}
-
+	bCollectNetStats = false;
+	bNoTimeouts = true;
 	// Derived types may have already allocated a socket
 
 	// Create the socket that we will use to communicate with
@@ -88,7 +89,7 @@ bool URustyIpNetDriver::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, c
 	//LocalAddr = SocketSubsystem->GetLocalHostAddr(*GLog, bCanBindAll);
 	LocalAddr = SocketSubsystem->GetLocalBindAddr(*GLog);
 
-	LocalAddr->SetPort(bInitAsClient ? GetClientPort() : URL.Port);
+	LocalAddr->SetPort(bInitAsClient ? 9000 : URL.Port);
 
 	int32 AttemptPort = LocalAddr->GetPort();
 	int32 BoundPort = SocketSubsystem->BindNextPort(Socket, *LocalAddr, MaxPortCountToTry + 1, 1);

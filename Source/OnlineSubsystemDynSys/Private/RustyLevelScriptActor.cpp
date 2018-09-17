@@ -13,6 +13,8 @@
 #include "Runtime/Engine/Classes/GameFramework/PlayerController.h"
 #include "Runtime/CoreUObject/Public/UObject/UObjectIterator.h"
 #include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
+#include "Runtime/Engine/Classes/GameFramework/GameSession.h"
+#include "Runtime/Engine/Classes/GameFramework/GameMode.h"
 #include "RustyWorldSettings.h"
 
 void ARustyLevelScriptActor::RegisterActors() {
@@ -85,85 +87,9 @@ void ARustyLevelScriptActor::RegisterActors() {
 		}
 	}
 }
-ARustyLevelScriptActor::ARustyLevelScriptActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer) {
-	
-}
 
-void ARustyLevelScriptActor::Tick(float DeltaTime) {
-	Super::Tick(DeltaTime);
-    settings->CheckProperties();
-}
-void ARustyLevelScriptActor::BeginPlay() {
-	Super::BeginPlay();
-	settings = (ARustyWorldSettings*)GetWorldSettings();
-	UWorld* world = GetWorld();
-	if (world == nullptr)return;
-
-	
-	
-
-	//OutSocket->Listen(15);
-	//OutSocket->SetNonBlocking();
-	//OutSocket->SetBroadcast();
-	//int32 SendSize = 2 * 1024 * 1024;
-	//OutSocket->SetReceiveBufferSize(SendSize, SendSize);
-	//OutSocket->SetSendBufferSize(SendSize,SendSize);
-	//OutSocket->SetReuseAddr();
-	//OutSocket->SetMulticastLoopback(true);
-	
-		//FIPv4Address ip(127, 0, 0, 1);
-
-	//TArray<FString> ips;
-	//settings->Server.Host.ParseIntoArray(ips, TEXT("."), true);
-
-	//FIPv4Address ip(FCString::Atoi(*ips[0]), FCString::Atoi(*ips[1]), FCString::Atoi(*ips[2]), FCString::Atoi(*ips[3]));
-
-	//addr->SetIp(ip.Value);
-	//
-	//addr->SetPort(settings->Server.Port);
-	//
-	//bool connected = OutSocket->Connect(*addr);
-	//TSharedRef<FInternetAddr> In = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	//TSharedRef<FInternetAddr> Out = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	//OutSocket->GetAddress(*In);
-	//OutSocket->GetPeerAddress(*Out);
-	//OutSocket->SetReuseAddr(true);
-	//OutSocket->SetBroadcast(true);
-	//FString SocketDesc;
-	//UE_LOG(LogTemp, Log, TEXT("Accepted Socket: %s [%s=>%s]"), *SocketDesc, *In.Get().ToString(true), *Out.Get().ToString(true));
-	/*FString serialized = TEXT("loadPlayer|10838u4320953092583209582903580329583");
-	TCHAR *serializedChar = serialized.GetCharArray().GetData();
-	int32 size = FCString::Strlen(serializedChar);
-	int32 sent = 0;
-
-	bool successful = OutSocket->Send((uint8*)TCHAR_TO_UTF8(serializedChar), size, sent);
-	uint8 Out[2000];
-	memset(Out, 0, serialized.Len());
-	StringToBytes(serialized, Out, serialized.Len());
-	std::vector<uint8> msg;
-	msg.resize(serialized.Len()+5);
-	int32 guid = 240;
-	msg[0] = 4;
-	msg[1] = guid;
-	msg[2] = guid >> 8;
-	msg[3] = guid >> 16;
-	msg[4] = guid >> 24;
-	for (int i = 0; i < serialized.Len()+5; i++) {
-		msg[i+5] = Out[i];
-	}
-	OutSocket->Send(msg.data(), msg.size(), sent);
-	FSocket* ListenSocket = FUdpSocketBuilder(TEXT("SomeDescription"))
-		.AsNonBlocking()
-		.AsReusable()
-		.BoundToEndpoint(FIPv4Endpoint(FIPv4Address(127, 0, 0, 1), 0))
-		.WithSendBufferSize(SendSize)
-		.WithReceiveBufferSize(SendSize).Build();
-	ListenSocket->Listen(3);*/
-	
-//	NetDriver->bNoTimeouts = true;
-
-
-//	SendServerRequest(ENetServerRequest::Register, NetBytes());
+void ARustyLevelScriptActor::LevelIsReady_Implementation() {
+	UE_LOG(LogTemp, Warning, TEXT("Level is ready: %s"), *GetName());
 	TArray<AActor*> actors = TArray<AActor*>();
 
 	UGameplayStatics::GetAllActorsOfClass((UObject*)this, AActor::StaticClass(), actors);
@@ -177,33 +103,28 @@ void ARustyLevelScriptActor::BeginPlay() {
 			UE_LOG(LogTemp, Log, TEXT("Registered object {%s} {%u}"), *a->GetName(), newId);
 		}
 	}
-	world->GetNetDriver();
+	GetWorld()->GetNetDriver();
 	settings->Setup();
-	/*if(NetDriver!=nullptr)
-		NetDriver->GetServerConnection()->settings = settings;*/
-	//SendServerRequest(ENetServerRequest::Register, NetBytes());
-}/*
-void ARustyLevelScriptActor::SendMessage(TArray<uint8> bytes, int32 guid) {
+	auto GameMode = GetWorld()->GetAuthGameMode();
+	auto GameSesssion = GameMode->GameSession;
+	bIsSetup = true;
+}
+ARustyLevelScriptActor::ARustyLevelScriptActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer) {
+	settings = (ARustyWorldSettings*)GetWorldSettings();
+}
 
-	TSharedRef<FInternetAddr> addr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-	int32 sent = 0;
-	std::vector<uint8> msg;
-
-	msg.resize(bytes.Num() + 5);
-	msg[0] = 0;
-	msg[1] = guid;
-	msg[2] = guid >> 8;
-	msg[3] = guid >> 16;
-	msg[4] = guid >> 24;
-
-	for (int i = 0; i< bytes.Num(); i++) {
-		msg[i + 5] = bytes[i];
+void ARustyLevelScriptActor::Tick(float DeltaTime) {
+	Super::Tick(DeltaTime);
+	if (GetWorld() == nullptr) return;
+	if (!bIsSetup) {
+		settings = (ARustyWorldSettings*)GetWorld()->GetWorldSettings();
+		if (settings != nullptr) {
+			LevelIsReady();
+		}
 	}
-	bool send2= NetDriver->Socket->Send(msg.data(),msg.size(), sent);
-
-	NetDriver->Socket->GetAddress(*addr);
-	UE_LOG(LogTemp, Log, TEXT("Sent: [%s] {%i} {%i} {%i} {%i}"), *addr.Get().ToString(true),send2, bytes.Num(), msg.size(), sent);
-	UE_LOG(LogTemp, Log, TEXT("InitConnect: Status %s"), *connection->GetStateString());
-}*/
+}
+void ARustyLevelScriptActor::BeginPlay() {
+	Super::BeginPlay();
+}
 
 

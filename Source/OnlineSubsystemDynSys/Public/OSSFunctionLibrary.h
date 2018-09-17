@@ -23,6 +23,12 @@
 #include "NetClient.h"
 #include "PoseSnapshot.h"
 #include "Delegate.h"
+
+
+#include "CoreMinimal.h"
+#include "UObject/ObjectMacros.h"
+
+
 #include "OSSFunctionLibrary.generated.h"
 #define PORT_COUNT 3
 
@@ -119,6 +125,7 @@ struct TStructOpsTypeTraits<FNetPoseSnapshot> : public TStructOpsTypeTraitsBase2
 	//	WithNetDeltaSerializer = true
 	};
 };
+
 /**
  * 
  */
@@ -130,6 +137,10 @@ class ONLINESUBSYSTEMDYNSYS_API UOSSFunctionLibrary : public UBlueprintFunctionL
 public:
 	UOSSFunctionLibrary() {
 		ANetClient::OnByteArray.BindStatic(UOSSFunctionLibrary::RouteArchive);
+	}
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+		static void ToText(int32 in, FText& Out) {
+		Out = FText::FromString(*FString::Printf(TEXT("%u"), in));
 	}
 	UFUNCTION(BlueprintCallable)
 		static void PrintRPCID(const FSnapshotDelegate& del) {

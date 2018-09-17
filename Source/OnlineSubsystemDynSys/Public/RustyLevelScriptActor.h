@@ -7,6 +7,7 @@
 #include "RustyIpNetDriver.h"
 #include "RustyNetConnection.h"
 #include "NetClient.h"
+#include "Runtime/Engine/Classes/GameFramework/GameSession.h"
 #include "RustyLevelScriptActor.generated.h"
 
 /**
@@ -31,7 +32,18 @@ public:
 	UFUNCTION(BlueprintCallable)
 		void RegisterActors();
 
+	UFUNCTION(BlueprintCallable)
+		ARustyWorldSettings* GetSettings() {
+		return settings;
+	}
 	virtual void BeginPlay() override;
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, meta = (DisplayName = "Level is really ready"))
+		void LevelIsReady();
+
+	AGameModeBase* GameMode;
+	AGameSession* GameSession;
+
+
 	//UFUNCTION(BlueprintCallable, Category = OSS)
 	//	virtual void OpenConnection() {
 	//	UWorld* world = GetWorld();
@@ -50,5 +62,7 @@ public:
 	//void RecvServerRequest(const NetBytes In);
 	//void RecvMesage(const NetBytes In);
 	virtual void ARustyLevelScriptActor::Tick(float DeltaTime) override;
+	bool bIsSetup;
+	UPROPERTY(BlueprintReadOnly,Category=World)
 	ARustyWorldSettings* settings;
 };

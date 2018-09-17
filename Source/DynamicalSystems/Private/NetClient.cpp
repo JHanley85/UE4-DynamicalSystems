@@ -34,6 +34,7 @@ void ANetClient::RegisterRigidBody(UNetRigidBody* RigidBody)
 
 void ANetClient::RegisterAvatar(UNetAvatar* _Avatar)
 {
+	return;
     UE_LOG(RustyNet, VeryVerbose, TEXT("ANetClient::RegisterAvatar %i %s"), _Avatar->NetID, *_Avatar->GetOwner()->GetName());
     NetAvatars.Add(_Avatar);
 }
@@ -77,6 +78,7 @@ void ANetClient::BeginPlay()
     Super::BeginPlay();
 	InitializeWithSettings();
 
+	return;
     bool bCanBindAll;
 	if (Local == "0.0.0.0") {
 		TSharedPtr<class FInternetAddr> localIp = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->GetLocalHostAddr(*GLog, bCanBindAll);
@@ -98,6 +100,7 @@ void ANetClient::BeginPlay()
 		
 }
 void ANetClient::RegisterPlayer() {
+	return;
 	if (!Registered) {
 		rd_register(Client, Uuid);
 	}
@@ -142,6 +145,7 @@ void  ANetClient::SendPing() {
 void ANetClient::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	return;
 	//Need higher resolution.
     float CurrentTime = UGameplayStatics::GetRealTimeSeconds(GetWorld());
     float CurrentAvatarTime = CurrentTime;

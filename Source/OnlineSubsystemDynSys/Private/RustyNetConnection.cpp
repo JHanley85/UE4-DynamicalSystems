@@ -13,6 +13,8 @@
 
 URustyNetConnection::URustyNetConnection(const FObjectInitializer& ObjectInitializer):Super(ObjectInitializer){
 	SetId(_playerId);
+	this->AddToRoot();
+
 }
 FOnRegisterComplete URustyNetConnection::OnRegisterComplete = FOnRegisterComplete();
 void URustyNetConnection::Tick() {
@@ -31,11 +33,7 @@ void URustyNetConnection::Tick() {
 			UE_LOG(LogTemp, Log, TEXT("From %s : bytes:%i"), *targetAddr.Get().ToString(true), Size);
 			RecvMesage(ReceivedData);
 		}
-		TArray<uint8> Bytes= TArray<uint8>();
-		if(Build_Ping(Bytes, _playerId))
-			SendServerRequest(ENetServerRequest::FunctionRep, Bytes);
 	}
-
 }
 FString URustyNetConnection::Describe()
 {
@@ -154,7 +152,7 @@ void URustyNetConnection::Recv_ServerRequest(const NetBytes In) {
 	if (In.Num() > 2) {
 		if (In[0] == (uint8)ENetAddress::ServerReq) {
 			switch (In[1]) {
-			case (uint8)ENetServerRequest::Ack:
+			case (uint8)ENetServerRequest::Ping:
 				URustyNetConnection::Recv_Ping(In);
 				break;
 			case (uint8)ENetServerRequest::Register:
@@ -162,6 +160,8 @@ void URustyNetConnection::Recv_ServerRequest(const NetBytes In) {
 				settings->UserId;
 				_playerId = uid;
 				SetId(uid);
+				if (settings)
+					settings->RegisterLocalClient(Sender);
 				break;
 			case (uint8)ENetServerRequest::Time:
 				uint64 ServerTime;
@@ -180,9 +180,78 @@ void URustyNetConnection::Recv_ServerRequest(const NetBytes In) {
 				TriggerPropertyReplication(PropId, Value);
 				//Do Something;
 				break;
+			case (uint8)ENetServerRequest::NewClientConnected:
+				URustyNetConnection::Recv_Join(In, Sender);
+				UE_LOG(LogTemp, Log, TEXT("New Client Joined, %u"),Sender);
+				if(settings)
+				settings->RegisterRemoteClient(Sender);
+				break;
+				//Do Something;
+			case (uint8) ENetServerRequest::Closing:
+				URustyNetConnection::Recv_Close(In, Sender);
+				UE_LOG(LogTemp, Log, TEXT("Client Left, %u"), Sender);
+				if(settings)
+				settings->DeregisterRemoteClient(Sender);
+				break;
 			default:
 				break;
 			}
 		}
 	}
+}
+
+void URustyNetConnection::CleanUp() {
+	SendServerRequest(ENetServerRequest::Closing, NetBytes());
+	Super::CleanUp();
+	this->RemoveFromRoot();
+}
+
+void  URustyNetConnection::Recv_Register(const NetBytes In, int32& OutId) {
+	uint8 StartBits = 2;
+	TArray<uint8> GuidBits = TArray<uint8>();
+	GuidBits.SetNum(4);
+#if PLATFORM_LITTLE_ENDIAN
+	GuidBits[3] = In[StartBits];
+	GuidBits[2] = In[StartBits + 1];
+	GuidBits[1] = In[StartBits + 2];
+	GuidBits[0] = In[StartBits + 3];
+#else
+	GuidBits[0] = In[StartBits];
+	GuidBits[1] = In[StartBits + 1];
+	GuidBits[2] = In[StartBits + 2];
+	GuidBits[3] = In[StartBits + 3];
+#endif
+	NetIdentifier uid = 0;
+	uid = ((GuidBits[0] << 24) |
+		(GuidBits[1] << 16) |
+		(GuidBits[2] << 8) |
+		GuidBits[3]);
+	UE_LOG(LogTemp, Log, TEXT("New UUID: %u"), uid);
+	if (settings) {
+		settings->UserId = uid;
+	}
+	OutId = uid;
+}
+
+
+void  URustyNetConnection::Recv_Join(const NetBytes In, NetIdentifier& Sender) {
+	const uint8 uidStartBits = 2;
+	TArray<uint8> UidBits = TArray<uint8>();
+	UidBits.SetNumZeroed(4);
+#if PLATFORM_LITTLE_ENDIAN
+	UidBits[3] = In[uidStartBits];
+	UidBits[2] = In[uidStartBits + 1];
+	UidBits[1] = In[uidStartBits + 2];
+	UidBits[0] = In[uidStartBits + 3];
+#else
+	UidBits[0] = In[uidStartBits];
+	UidBits[1] = In[uidStartBits + 1];
+	UidBits[2] = In[uidStartBits + 2];
+	UidBits[3] = In[uidStartBits + 3];
+#endif
+
+	Sender = ((UidBits[0] << 24) |
+		(UidBits[1] << 16) |
+		(UidBits[2] << 8) |
+		UidBits[3]);
 }
